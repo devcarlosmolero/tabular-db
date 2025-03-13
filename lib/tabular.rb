@@ -1,4 +1,5 @@
 require 'csv'
+require_relative "exceptions/query_option_exception"
 
 class Tabular
   def initialize(files_root)
@@ -7,10 +8,7 @@ class Tabular
 
   def delete(clazz, where = nil)
     unless where.nil?
-      raise Exception 'You must specify the property key if you use the where clause.' if where[:property].nil?
-      raise Exception 'You must specify the value key if you use the where clause.' if where[:value].nil?
-      raise Exception 'You must specify the op key if you use the where clause.' if where[:op].nil?
-      # def validate_where(where)
+      raise_where where
     end
 
     op_data = get_read_delete_op_data(clazz)
@@ -42,14 +40,11 @@ class Tabular
   # TODO: Return as clazz (Class) entities option, replace individual options for 'options' variable
   def read(clazz, where = nil, sort = nil, as_instance = false)
     unless where.nil?
-      raise Exception 'You must specify the property key if you use the where clause.' if where[:property].nil?
-      raise Exception 'You must specify the value key if you use the where clause.' if where[:value].nil?
-      raise Exception 'You must specify the op key if you use the where clause.' if where[:op].nil?
+      raise_where where
     end
 
     unless sort.nil?
-      raise Exception 'You must specify the property key if you use sort.' if where[:property].nil?
-      raise Exception 'You must specify the order key if you use the sort clause.' if where[:order].nil?
+      raise_sort sort
     end
 
     op_data = get_read_delete_op_data(clazz)
@@ -64,6 +59,7 @@ class Tabular
     rows = unfiltered_rows.drop(1)
 
     filtered_rows = []
+
     rows.each do |row|
       i = 0
       single_obj = {}
@@ -147,5 +143,19 @@ class Tabular
 
   def get_entity_accessors(entity)
     entity.instance_variables.map { |var| var.to_s.delete('@') }
+  end
+
+  def raise_where(where)
+    raise QueryOptionException "where" "property" if where[:property].nil?
+    raise QueryOptionException "where" "op" if where[:op].nil?
+    raise QueryOptionException "where" "value" if where[:value].nil?
+  end
+
+  def raise_sort (sort)
+    raise QueryOptionException "where" "property" if where[:property].nil?
+    raise QueryOptionException "where" "order" if where[:order].nil?
+  end
+
+  def use_where(unfiltered_rows, where)
   end
 end
