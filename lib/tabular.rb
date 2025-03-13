@@ -26,14 +26,15 @@ class Tabular
         actual_value = row[where[:property]].to_i
 
         filtered_rows << row unless eval "actual_value #{where[:op]} expected_value"
-        # TODO: def use_where(unfiltered_rows)
       end
 
+      lines = CSV.generate_line(header)
       filtered_rows.each do |row|
-        entity = clazz.new(row)
-
-        # TODO: def entity_to_line
+        row_as_array = row.keys.map { |key| row[key] }
+        lines += CSV.generate_line(row_as_array)
       end
+
+      File.write(op_data[:file_path], lines.strip)
     end
   end
 
