@@ -1,13 +1,46 @@
 require 'csv'
 
 class Tabular
-  attr_reader :files_root
-
   def initialize(files_root)
     @files_root = "#{Dir.pwd}#{files_root}"
   end
 
-  def read(clazz, where = nil, sort = nil)
+  def delete(clazz, where = nil)
+    unless where.nil?
+      raise Exception 'You must specify the property key if you use the where clause.' if where[:property].nil?
+      raise Exception 'You must specify the value key if you use the where clause.' if where[:value].nil?
+      raise Exception 'You must specify the op key if you use the where clause.' if where[:op].nil?
+      # def validate_where(where)
+    end
+
+    op_data = get_read_delete_op_data(clazz)
+    data = read(clazz)
+    header = data[:header]
+
+    if where.nil?
+      lines = CSV.generate_line(header)
+      File.write(op_data[:file_path], lines.strip)
+    else
+      unfiltered_rows = data[:rows]
+      filtered_rows = []
+      unfiltered_rows.each do |row|
+        expected_value = where[:value].to_i
+        actual_value = row[where[:property]].to_i
+
+        filtered_rows << row unless eval "actual_value #{where[:op]} expected_value"
+        # TODO: def use_where(unfiltered_rows)
+      end
+
+      filtered_rows.each do |row|
+        entity = clazz.new(row)
+
+        # TODO: def entity_to_line
+      end
+    end
+  end
+
+  # TODO: Return as clazz (Class) entities option, replace individual options for 'options' variable
+  def read(clazz, where = nil, sort = nil, as_instance = false)
     unless where.nil?
       raise Exception 'You must specify the property key if you use the where clause.' if where[:property].nil?
       raise Exception 'You must specify the value key if you use the where clause.' if where[:value].nil?
@@ -19,19 +52,18 @@ class Tabular
       raise Exception 'You must specify the order key if you use the sort clause.' if where[:order].nil?
     end
 
-    op_data = get_read_op_data(clazz)
-    data = []
+    op_data = get_read_delete_op_data(clazz)
+    unfiltered_rows = []
     File.open(op_data[:file_path]) do |file|
       CSV.foreach(file) do |row|
-        data << row
+        unfiltered_rows << row
       end
     end
 
-    header = data[0]
-    rows = data.drop(1)
+    header = unfiltered_rows[0]
+    rows = unfiltered_rows.drop(1)
 
-    data_obj_arr = []
-
+    filtered_rows = []
     rows.each do |row|
       i = 0
       single_obj = {}
@@ -41,26 +73,30 @@ class Tabular
       end
 
       if where.nil?
-        data_obj_arr << single_obj
+        filtered_rows << single_obj
       else
         expected_value = where[:value].to_i
         actual_value = single_obj[where[:property]].to_i
 
-        data_obj_arr << single_obj if eval "actual_value #{where[:op]} expected_value"
+        filtered_rows << single_obj if eval "actual_value #{where[:op]} expected_value"
       end
     end
 
-    puts data_obj_arr
+    {
+      header: header,
+      rows: filtered_rows
+    }
   end
 
   def insert(entity)
+    puts entity.inspect
     op_data = get_insert_op_data(entity)
+    puts op_data.inspect
 
     accessors = entity.instance_variables.map { |var| var.to_s.delete('@') }
     row_to_insert = accessors.map { |var| entity.send(var) }
 
     if !File.exist?(op_data[:file_path])
-      accessors = entity.instance_variables.map { |var| var.to_s.delete('@') }
       header = accessors
       lines = "#{CSV.generate_line(header)}#{CSV.generate_line(row_to_insert)}"
     else
@@ -74,8 +110,7 @@ class Tabular
       data << row_to_insert
       lines = data.map { |row| CSV.generate_line(row) }.join('')
     end
-
-    File.write("#{files_root}/#{op_data[:file_name]}", lines.strip)
+    File.write(op_data[:file_path], lines.strip)
   end
 
   private
@@ -92,7 +127,7 @@ class Tabular
     }.transform_keys(&:to_sym)
   end
 
-  def get_read_op_data(clazz)
+  def get_read_delete_op_data(clazz)
     file_name = get_file_name(clazz.name)
     file_path = get_file_path(file_name)
 

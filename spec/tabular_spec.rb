@@ -13,10 +13,11 @@ RSpec.describe Tabular do
     it 'reads the whole table' do
       where = {
         property: 'user_id',
-        op: '>',
-        value: '1'
+        op: '==',
+        value: '2'
       }
       tabular.read(User, where)
+      tabular.delete(User, where)
     end
   end
 end
