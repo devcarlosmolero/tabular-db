@@ -31,7 +31,7 @@ gem "tailwindcss-rails", "~> 4.2"
 
 gem "httparty", "~> 0.22.0", require: false
 
-gem "tabular-db", path: "../tabular-db", require: false
+gem "tabular-db", path: "../../tabular-db", require: false
 
 group :development, :test do
   # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
