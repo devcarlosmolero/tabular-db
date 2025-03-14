@@ -1,15 +1,15 @@
-require 'tabular'
-require_relative "../lib/exceptions/tabular_error"
+require 'tabular-db'
 require_relative 'fixtures/user'
 require_relative 'fixtures/comment'
+require_relative "../lib/tabular_db_error"
 
-RSpec.describe Tabular do
+RSpec.describe TabularDB do
   FILES_ROOT = '/spec/fixtures'
 
-  let(:tabular) { Tabular.new(FILES_ROOT) }
+  let(:tabular) { TabularDB.new(FILES_ROOT) }
 
   before(:all) do
-    t = Tabular.new(FILES_ROOT)
+    t = TabularDB.new(FILES_ROOT)
     t.drop(User)
     t.drop(Comment)
   end
@@ -18,7 +18,7 @@ RSpec.describe Tabular do
     it 'create should raise an error if the instances argument is not an array' do
       expect {
         tabular.create(User.new({ user_id: 1, username: 'johndoe', email: 'john@doe.com', created_at: Time.now }))
-      }.to raise_error(TabularError, 'TabularDB: instances should be an array')
+      }.to raise_error(TabularDBError, 'TabularDB: instances must be an array')
     end
 
     it 'create should raise an error if instances are from different classes' do
@@ -27,7 +27,7 @@ RSpec.describe Tabular do
           User.new({ user_id: 1, username: 'johndoe', email: 'john@doe.com', created_at: Time.now }),
           Comment.new({ comment_id: 1, user_id: 1, comment_text: 'Something', created_at: Time.now })
         ])
-      }.to raise_error(TabularError, 'TabularDB: all the instances must be created from the same Class')
+      }.to raise_error(TabularDBError, 'TabularDB: all the instances must be created from the same Class')
     end
 
     it 'create should create a table if it does not exist' do
@@ -75,13 +75,13 @@ RSpec.describe Tabular do
     it 'update should raise an error if there is no where clause' do
       expect {
         tabular.update(User)
-      }.to raise_error(TabularError, 'TabularDB: where argument is required for update operations')
+      }.to raise_error(TabularDBError, 'TabularDB: where argument is required for update operations')
     end
 
     it 'update should raise an error if there is no updated_values' do
       expect {
         tabular.update(User, "instance.user_id == 1")
-      }.to raise_error(TabularError, 'TabularDB: updated_values argument is required for update operations')
+      }.to raise_error(TabularDBError, 'TabularDB: updated_values argument is required for update operations')
     end
 
     it 'update should be able to update a single record' do
