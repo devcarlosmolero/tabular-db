@@ -1,8 +1,0 @@
-comment_id,user_id,comment_text,created_at
-1,1,"This is a test comment!",2023-06-01
-2,2,"I love this content.",2023-06-02
-3,1,"Thanks for the information.",2023-06-03
-4,3,"Interesting, where can I find more?",2023-06-04
-5,4,I disagree with this.,2023-06-05
-6,5,"Great job!",2023-06-06
-7,2,"Does anyone else have an opinion?",2023-06-07

@@ -1,16 +1,16 @@
 require 'csv'
-require_relative "exceptions/query_option_exception"
+require_relative "exceptions/tabular_error"
 
 class Tabular
   def initialize(files_root)
     @files_root = "#{Dir.pwd}#{files_root}"
   end
 
-  def delete(clazz, where = nil)
-    unless where.nil?
-      raise_where where
-    end
+  def update
 
+  end
+
+  def delete(clazz, where = nil)
     op_data = get_read_delete_op_data(clazz)
     data = read(clazz)
     header = data[:header]
@@ -19,35 +19,25 @@ class Tabular
       lines = CSV.generate_line(header)
       File.write(op_data[:file_path], lines.strip)
     else
-      unfiltered_rows = data[:rows]
-      filtered_rows = []
-      unfiltered_rows.each do |row|
-        expected_value = where[:value].to_i
-        actual_value = row[where[:property]].to_i
+      unfiltered_obj_array = data[:rows]
+      filtered_obj_array = []
 
-        filtered_rows << row unless eval "actual_value #{where[:op]} expected_value"
+      unfiltered_obj_array.each do |obj|
+        instance = clazz.new(row_to_object(obj.values, header).transform_keys(&:to_sym))
+        filtered_obj_array << obj unless eval where
       end
 
       lines = CSV.generate_line(header)
-      filtered_rows.each do |row|
-        row_as_array = row.keys.map { |key| row[key] }
-        lines += CSV.generate_line(row_as_array)
+      filtered_obj_array.each do |obj|
+        obj_as_array = obj.keys.map { |key| obj[key] }
+        lines += CSV.generate_line(obj_as_array)
       end
 
       File.write(op_data[:file_path], lines.strip)
     end
   end
 
-  # TODO: Return as clazz (Class) entities option, replace individual options for 'options' variable
-  def read(clazz, where = nil, sort = nil, as_instance = false)
-    unless where.nil?
-      raise_where where
-    end
-
-    unless sort.nil?
-      raise_sort sort
-    end
-
+  def read(clazz, as_instances = false, where = nil, sort = nil)
     op_data = get_read_delete_op_data(clazz)
     unfiltered_rows = []
     File.open(op_data[:file_path]) do |file|
@@ -59,61 +49,87 @@ class Tabular
     header = unfiltered_rows[0]
     rows = unfiltered_rows.drop(1)
 
-    filtered_rows = []
+    obj_array = []
 
     rows.each do |row|
-      i = 0
-      single_obj = {}
-      row.map do |value|
-        single_obj[header[i]] = value
-        i += 1
-      end
+      row_as_obj = row_to_object(row, header)
 
       if where.nil?
-        filtered_rows << single_obj
+        obj_array << row_as_obj
       else
-        expected_value = where[:value].to_i
-        actual_value = single_obj[where[:property]].to_i
-
-        filtered_rows << single_obj if eval "actual_value #{where[:op]} expected_value"
+        instance = clazz.new(row_as_obj.transform_keys(&:to_sym))
+        obj_array << row_as_obj if eval where
       end
     end
 
     {
       header: header,
-      rows: filtered_rows
+      rows: obj_array
     }
   end
 
-  def insert(entity)
-    puts entity.inspect
-    op_data = get_insert_op_data(entity)
-    puts op_data.inspect
+  def insert(instances)
+    if !instances.is_a?(Array)
+      raise TabularError, "insert accepts an array of instances"
+    end
 
-    accessors = entity.instance_variables.map { |var| var.to_s.delete('@') }
-    row_to_insert = accessors.map { |var| entity.send(var) }
+    first_instance = instances.first
 
-    if !File.exist?(op_data[:file_path])
+
+    instances.each do |instance|
+      if instance.class != first_instance.class
+        raise TabularError, "all the instances passed to insert must be created from the same Class"
+      end
+    end
+
+    op_data = get_insert_op_data(first_instance)
+    accessors = first_instance.instance_variables.map { |var| var.to_s.delete('@') }
+    rows_to_insert = []
+
+    instances.each do |instance|
+      row_from_instance = []
+      accessors.each do |accessor|
+        row_from_instance << instance.send(accessor)
+      end
+      rows_to_insert << row_from_instance
+    end
+
+    lines = ""
+
+    if !table_exists?(nil, op_data)
       header = accessors
-      lines = "#{CSV.generate_line(header)}#{CSV.generate_line(row_to_insert)}"
+      lines = "#{CSV.generate_line(header)}#{rows_to_insert.map { |row| CSV.generate_line(row) }.join('')}"
     else
-      data = []
+      existing_rows = []
       File.open(op_data[:file_path]) do |file|
-        CSV.foreach(file) do |row|
-          data << row
+        CSV.foreach(file) do |existing_row|
+          existing_rows << existing_row
         end
       end
 
-      data << row_to_insert
-      lines = data.map { |row| CSV.generate_line(row) }.join('')
+      existing_rows.push(*rows_to_insert)
+      lines = existing_rows.map { |row| CSV.generate_line(row) }.join('')
     end
+
     File.write(op_data[:file_path], lines.strip)
+  end
+
+  def table_exists?(clazz = nil, op_data = nil)
+    if op_data.nil? and clazz.nil?
+      raise TabularError, 'you must provide a Class or the operation data to use table_exists?'
+    end
+
+    File.exist?(op_data ? op_data[:file_path] : get_file_path(get_file_name(clazz.name)))
+  end
+
+  def drop(clazz)
+    File.delete(get_file_path(get_file_name(clazz.name))) if table_exists?(clazz)
   end
 
   private
 
-  def get_insert_op_data(entity)
-    class_name = entity.class.name
+  def get_insert_op_data(instance)
+    class_name = instance.class.name
     file_name = get_file_name(class_name)
     file_path = get_file_path(file_name)
 
@@ -142,21 +158,22 @@ class Tabular
     "#{@files_root}/#{file_name}"
   end
 
-  def get_entity_accessors(entity)
-    entity.instance_variables.map { |var| var.to_s.delete('@') }
+  def get_instance_accessors(instance)
+    instance.instance_variables.map { |var| var.to_s.delete('@') }
   end
 
-  def raise_where(where)
-    raise QueryOptionException "where" "property" if where[:property].nil?
-    raise QueryOptionException "where" "op" if where[:op].nil?
-    raise QueryOptionException "where" "value" if where[:value].nil?
-  end
+  def row_to_object(row, header)
+    unless row.is_a?(Array)
+      raise TabularError, "row must be an array"
+    end
 
-  def raise_sort (sort)
-    raise QueryOptionException "where" "property" if where[:property].nil?
-    raise QueryOptionException "where" "order" if where[:order].nil?
-  end
+    i = 0
+    row_as_obj = {}
+    row.map do |value|
+      row_as_obj[header[i]] = value
+      i += 1
+    end
 
-  def use_where(unfiltered_rows, where)
+    row_as_obj
   end
 end
