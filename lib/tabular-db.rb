@@ -176,11 +176,11 @@ class TabularDB
       raise TabularDBError, 'clazz argument is required'
     end
 
-    if !header.is_a(Array)
+    if !header.is_a?(Array)
       raise TabularDBError, 'header must be an array'
     end
 
-    if !table_exist?
+    if !table_exist?(clazz)
       file_name = get_file_name(clazz.name)
       file_path = get_file_path(file_name)
 
