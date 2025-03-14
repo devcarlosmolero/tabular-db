@@ -50,24 +50,35 @@ RSpec.describe TabularDB do
       tabular.create([
         User.new({ user_id: 3, username: 'johndoe3', email: 'john3@doe.com', created_at: Time.now }),
         User.new({ user_id: 4, username: 'johndoe4', email: 'john4@doe.com', created_at: Time.now }),
+        User.new({ user_id: 5, username: 'johndoe5', email: 'john5@doe.com', created_at: Time.now }),
+        User.new({ user_id: 6, username: 'johndoe6', email: 'john6@doe.com', created_at: Time.now }),
       ])
 
-      expect(tabular.read(User)[:rows].count).to eq 4
+      expect(tabular.read(User)[:rows].count).to eq 6
     end
   end
 
   describe '#read' do
     it 'read should filter using where' do
-        expect(tabular.read(User, "instance.user_id == 1")[:rows].count).to eq 1
+        expect(tabular.read(User, 0, 0, "row['user_id'].to_i == 1")[:rows].count).to eq 1
     end
 
     it 'read should filter using multiple where clauses' do
-      expect(tabular.read(User, "instance.user_id == 1 and instance.username == 'johndoe'")[:rows].count).to eq 1
+      expect(tabular.read(User, 0, 0, "row['user_id'].to_i and row['username'] == 'johndoe'")[:rows].count).to eq 1
     end
 
     it 'read should return the header and the rows' do
-      expect(tabular.read(User, "instance.user_id == 1 and instance.username == 'johndoe'")[:header].count).to eq 4
-      expect(tabular.read(User, "instance.user_id == 1 and instance.username == 'johndoe'")[:rows].count).to eq 1
+      expect(tabular.read(User, 0, 0, "row['user_id'].to_i == 1 and row['username'] == 'johndoe'")[:header].count).to eq 4
+      expect(tabular.read(User, 0, 0, "row['user_id'].to_i == 1 and row['username'] == 'johndoe'")[:rows].count).to eq 1
+    end
+
+    it 'read should return the paginated rows' do
+      expect(tabular.read(User, 2, 0)[:rows].count).to eq 2
+      expect(tabular.read(User, 2, 2)[:rows].count).to eq 2
+    end
+
+    it 'read should sort' do
+      expect(tabular.read(User, 0, 0, nil, "row['user_id'].to_i * -1")[:rows].first["user_id"]).to eq "6"
     end
   end
 
@@ -80,31 +91,31 @@ RSpec.describe TabularDB do
 
     it 'update should raise an error if there is no updated_values' do
       expect {
-        tabular.update(User, "instance.user_id == 1")
+        tabular.update(User, "row['user_id'].to_i == 1")
       }.to raise_error(TabularDBError, 'TabularDB: updated_values argument is required for update operations')
     end
 
     it 'update should be able to update a single record' do
-      tabular.update(User, "instance.user_id == 1", { user_id: 22 })
-      expect(tabular.read(User, "instance.user_id == 22")[:rows].count).to eq 1
+      tabular.update(User, "row['user_id'].to_i == 1", { user_id: 22 })
+      expect(tabular.read(User, 0, 0, "row['user_id'].to_i == 22")[:rows].count).to eq 1
     end
 
     it 'update should be able to update a multiple records' do
-      tabular.update(User, "instance.user_id == 1 or instance.user_id == 2", { user_id: 22 })
-      expect(tabular.read(User, "instance.user_id == 22")[:rows].count).to eq 2
+      tabular.update(User, "row['user_id'].to_i == 1 or row['user_id'].to_i == 2", { user_id: 22 })
+      expect(tabular.read(User, 0, 0, "row['user_id'].to_i == 22")[:rows].count).to eq 2
     end
 
     it 'update should return the updated records' do
-      result = tabular.update(User, "instance.user_id == 3 or instance.user_id == 4", { user_id: 22 })
-      expect(result[:rows][0]["user_id"]).to eq 22
-      expect(result[:rows][1]["user_id"]).to eq 22
+      result = tabular.update(User, "row['user_id'].to_i == 3 or row['user_id'].to_i == 4", { user_id: 22 })
+      expect(result[:rows][0]["user_id"].to_i).to eq 22
+      expect(result[:rows][1]["user_id"].to_i).to eq 22
     end
   end
 
   describe '#delete' do
     it 'delete should remove specific records in a table when a where clause is passed' do
-      tabular.delete(User, "instance.user_id == 1 and instance.username == 'johndoe'")
-      expect(tabular.read(User, "instance.user_id == 1 and instance.username == 'johndoe'")[:rows].count).to eq 0
+      tabular.delete(User, "row['user_id'].to_i == 1 and row['username'] == 'johndoe'")
+      expect(tabular.read(User, 0, 0, "row['user_id'].to_i == 1 and row['username'] == 'johndoe'")[:rows].count).to eq 0
     end
 
     it 'delete should remove all records in a table when no where clause is passed' do

@@ -11,43 +11,25 @@ class TabularDB
   end
 
   def create(instances)
-    if !instances.is_a?(Array)
-      raise TabularDBError, "instances must be an array"
-    end
+    raise TabularDBError, "instances must be an array" unless instances.is_a?(Array)
 
     first_instance = instances.first
-
     instances.each do |instance|
-      if instance.class != first_instance.class
-        raise TabularDBError, "all the instances must be created from the same Class"
-      end
+      raise TabularDBError, "all the instances must be created from the same Class" if instance.class != first_instance.class
     end
 
     op_data = get_create_op_data(first_instance)
     accessors = first_instance.instance_variables.map { |var| var.to_s.delete('@') }
-    rows_to_create = []
-
-    instances.each do |instance|
-      row_from_instance = []
-      accessors.each do |accessor|
-        row_from_instance << instance.send(accessor)
-      end
-      rows_to_create << row_from_instance
+    rows_to_create = instances.map do |instance|
+      accessors.map { |accessor| instance.send(accessor) }
     end
 
     lines = ""
-
     if !table_exist?(nil, op_data)
       header = accessors
       lines = "#{CSV.generate_line(header)}#{rows_to_create.map { |row| CSV.generate_line(row) }.join('')}"
     else
-      existing_rows = []
-      File.open(op_data[:file_path]) do |file|
-        CSV.foreach(file) do |existing_row|
-          existing_rows << existing_row
-        end
-      end
-
+      existing_rows = CSV.read(op_data[:file_path])
       rows = existing_rows + rows_to_create
       lines = rows.map { |row| CSV.generate_line(row) }.join('')
     end
@@ -55,120 +37,83 @@ class TabularDB
     File.write(op_data[:file_path], lines.strip)
   end
 
-  def read(clazz, where = nil, sort = nil)
-    if clazz.nil?
-      raise TabularDBError, 'clazz argument is required'
-    end
+  def read(clazz, limit = 0, offset = 0, where = nil, sort = nil)
+    raise TabularDBError, 'clazz argument is required' if clazz.nil?
 
     op_data = get_read_update_delete_op_data(clazz)
-    unfiltered_rows = []
-    File.open(op_data[:file_path]) do |file|
-      CSV.foreach(file) do |row|
-        unfiltered_rows << row
-      end
+    unfiltered_rows = CSV.read(op_data[:file_path])
+
+    header = unfiltered_rows.shift
+    rows = unfiltered_rows.map { |row| row_to_object(row, header) }
+
+    if where
+      rows.select! { |row| eval where }
     end
 
-    header = unfiltered_rows[0]
-    rows = unfiltered_rows.drop(1)
-
-    obj_array = []
-
-    rows.each do |row|
-      row_as_obj = row_to_object(row, header)
-
-      if where.nil?
-        obj_array << row_as_obj
-      else
-        instance = clazz.new(row_as_obj.transform_keys(&:to_sym))
-        obj_array << row_as_obj if eval where
-      end
-    end
+    rows.sort_by! { |row| eval sort } if sort
+    rows = rows.drop(offset)
+    rows = rows.first(limit) unless limit == 0
 
     {
       header: header,
-      rows: obj_array
+      rows: rows
     }
   end
 
   def update(clazz, where = nil, updated_values = nil)
-    if clazz.nil?
-      raise TabularDBError, 'clazz argument is required'
-    end
-
-    if where.nil?
-      raise TabularDBError, "where argument is required for update operations"
-    end
-
-    if updated_values.nil?
-      raise TabularDBError, "updated_values argument is required for update operations"
-    end
+    raise TabularDBError, 'clazz argument is required' if clazz.nil?
+    raise TabularDBError, "where argument is required for update operations" if where.nil?
+    raise TabularDBError, "updated_values argument is required for update operations" if updated_values.nil?
 
     op_data = get_read_update_delete_op_data(clazz)
     data = read(clazz)
     header = data[:header]
+    rows = data[:rows]
 
-    obj_array = data[:rows]
-    updated_obj_arr = []
-
-    obj_array = obj_array.map do |obj|
-      instance = clazz.new(obj.transform_keys(&:to_sym))
+    updated_rows = []
+    new_rows = rows.map do |row|
       if eval where
-          new_obj = obj
-          header.each do |key|
-            if !updated_values[key.to_sym].nil?
-              new_obj[key] = updated_values[key.to_sym]
-            end
-          end
-          updated_obj_arr << new_obj
-          new_obj
+        updated_values.each { |key, value| row[key.to_s] = value.to_s unless value.nil? }
+        updated_rows << row
+        row
       else
-          obj
+        row
       end
     end
 
     lines = CSV.generate_line(header)
-    obj_array.each do |obj|
-      obj_as_array = obj.keys.map { |key| obj[key] }
-      lines += CSV.generate_line(obj_as_array)
+    new_rows.each do |row|
+      lines += CSV.generate_line(row.values)
     end
 
     File.write(op_data[:file_path], lines.strip)
 
     {
       header: header,
-      rows: updated_obj_arr
+      rows: updated_rows
     }
   end
 
   def delete(clazz, where = nil)
-    if clazz.nil?
-      raise TabularDBError, 'clazz argument is required'
-    end
+    raise TabularDBError, 'clazz argument is required' if clazz.nil?
 
     op_data = get_read_update_delete_op_data(clazz)
     data = read(clazz)
     header = data[:header]
+    rows = data[:rows]
 
-    if where.nil?
-      lines = CSV.generate_line(header)
-      File.write(op_data[:file_path], lines.strip)
+    if where
+      rows.reject! { |row| eval where }
     else
-      unfiltered_obj_array = data[:rows]
-      filtered_obj_array = []
-
-      unfiltered_obj_array.each do |obj|
-        instance = clazz.new(row_to_object(obj.values, header).transform_keys(&:to_sym))
-        filtered_obj_array << obj unless eval where
-      end
-
-      lines = CSV.generate_line(header)
-      filtered_obj_array.each do |obj|
-        obj_as_array = obj.keys.map { |key| obj[key] }
-        lines += CSV.generate_line(obj_as_array)
-      end
-
-      File.write(op_data[:file_path], lines.strip)
+      rows = []
     end
+
+    lines = CSV.generate_line(header)
+    rows.each do |row|
+      lines += CSV.generate_line(row.values)
+    end
+
+    File.write(op_data[:file_path], lines.strip)
   end
 
   def create_if_not_exist(clazz, header)
