@@ -3,11 +3,24 @@ require_relative "./tabular_db_error"
 
 class TabularDB
   def initialize(files_root)
-    if files_root.nil?
-      raise TabularDBError, "files_root argument is required"
+    raise TabularDBError, "files_root argument is required" if files_root.nil?
+    @files_root = "#{Dir.pwd}#{files_root}"
+  end
+
+  def count(where)
+    op_data = get_read_update_delete_op_data(clazz)
+    unfiltered_rows = CSV.read(op_data[:file_path])
+    rows = unfiltered_rows.map { |row| row_to_object(row, header) }
+
+    if where
+      rows.select! { |row| eval where }
     end
 
-    @files_root = "#{Dir.pwd}#{files_root}"
+    rows.sort_by! { |row| eval sort } if sort
+    rows = rows.drop(offset)
+    rows = rows.first(limit) unless limit == 0
+
+    return rows.count
   end
 
   def create(instances)
@@ -51,12 +64,16 @@ class TabularDB
     end
 
     rows.sort_by! { |row| eval sort } if sort
+    filtered_count = rows.size
     rows = rows.drop(offset)
     rows = rows.first(limit) unless limit == 0
 
     {
       header: header,
-      rows: rows
+      rows: rows,
+      total_count: unfiltered_rows.size,
+      has_next: offset + rows.size < filtered_count,
+      has_prev: offset > 0
     }
   end
 
@@ -117,13 +134,8 @@ class TabularDB
   end
 
   def create_if_not_exist(clazz, header)
-    if clazz.nil?
-      raise TabularDBError, 'clazz argument is required'
-    end
-
-    if !header.is_a?(Array)
-      raise TabularDBError, 'header must be an array'
-    end
+    raise TabularDBError, 'clazz argument is required' if clazz.nil?
+    raise TabularDBError, 'header must be an array' if !header.is_a?(Array)
 
     if !table_exist?(clazz)
       file_name = get_file_name(clazz.name)
@@ -134,18 +146,12 @@ class TabularDB
   end
 
   def table_exist?(clazz = nil, op_data = nil)
-    if op_data.nil? and clazz.nil?
-      raise TabularDBError, 'you must provide a Class or the operation data to use table_exist?'
-    end
-
+    raise TabularDBError, 'you must provide a Class or the operation data to use table_exist?' if op_data.nil? and clazz.nil?
     File.exist?(op_data ? op_data[:file_path] : get_file_path(get_file_name(clazz.name)))
   end
 
   def drop(clazz)
-    if clazz.nil?
-      raise TabularDBError, 'clazz argument is required'
-    end
-
+    raise TabularDBError, 'clazz argument is required' if clazz.nil?
     File.delete(get_file_path(get_file_name(clazz.name))) if table_exist?(clazz)
   end
 
@@ -186,14 +192,8 @@ class TabularDB
   end
 
   def row_to_object(row, header)
-    unless row.is_a?(Array)
-      raise TabularDBError, "row must be an array"
-    end
-
-    unless header.is_a?(Array)
-      raise TabularDBError, "header must be an array"
-    end
-
+    raise TabularDBError, "row must be an array" unless row.is_a?(Array)
+    raise TabularDBError, "header must be an array" unless header.is_a?(Array)
 
     i = 0
     row_as_obj = {}

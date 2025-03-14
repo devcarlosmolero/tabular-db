@@ -77,6 +77,14 @@ RSpec.describe TabularDB do
       expect(tabular.read(User, 2, 2)[:rows].count).to eq 2
     end
 
+    it 'read should return the has_next and has_prev' do
+      expect(tabular.read(User, 2, 0)[:has_next]).to be true
+      expect(tabular.read(User, 2, 0)[:has_prev]).to be false
+
+      expect(tabular.read(User, 2, 4)[:has_next]).to be false
+      expect(tabular.read(User, 2, 4)[:has_prev]).to be true
+    end
+
     it 'read should sort' do
       expect(tabular.read(User, 0, 0, nil, "row['user_id'].to_i * -1")[:rows].first["user_id"]).to eq "6"
     end
