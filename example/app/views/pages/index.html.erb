@@ -1,0 +1,90 @@
+<form method="GET" action="/" style="min-height: 100vh" class="w-full z-20 py-8 space-y-8">
+  <div class="flex items-center gap-3">
+    <button type="button" data-page="<%= @current_page - 1 %>" 
+      class="btn btn-sm min-w-[100px] <%= !@has_prev ? "btn-ghost pointer-events-none":"btn-outline btn-primary" %>">
+      <i data-lucide="chevron-left" class="size-4"></i>
+      Previous
+    </button>
+    <button type="button" data-page="<%= @current_page + 1 %>" 
+      class="btn btn-sm min-w-[100px] <%= !@has_next ? "btn-ghost pointer-events-none":"btn-primary" %>">
+      Next
+      <i data-lucide="chevron-right" class="size-4"></i>
+    </button>
+  </div>
+  <input name="page" type="hidden" value="<%= @current_page %>"/>
+  <input name="sort_by" type="hidden" value="<%= @current_sort_by %>"/>
+  <input name="sort_direction" type="hidden" value="<%= @current_sort_direction %>"/>
+  <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+    <table class="table">
+      <thead>
+        <tr id="sort-buttons">
+          <% @header.each do |h| %>
+            <th>
+              <div class="flex items-center gap-2">
+                <p><%= h %></p>
+                <% if h == "id" or h == "age" %>
+                  <button data-sort="<%= h %>" type="button" class="btn btn-circle btn-soft btn-xs !px-6">
+                    <%= h === @current_sort_by ? @current_sort_direction:"-" %>
+                  </button>
+                <% end %>
+              </div>
+            </th>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody>
+        <% @users.each do |user| %>
+          <tr>
+            <th><%= user['id'] %></i></th>
+          <th><%= user['username'] %></th>
+          <th><%= user['name'] %></th>
+          <th><%= user['age'] %></th>
+          <th><%= user['email'] %></th>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<fieldset class="fieldset w-fit">
+  <legend class="fieldset-legend">Limit</legend>
+  <select value="<%= @current_limit %>" name="limit" class="select">
+    <% [10, 20, 30, 40, 50].each do |value| %>
+      <option value="<%= value %>" <%= 'selected' if value == @current_limit %>>
+      <%= value %>
+    </option>
+      <% end %>
+    </select>
+  </fieldset>
+</form>
+<script>
+  (()=>{
+    const $form = document.querySelector("form");
+    const $pageButtons = document.querySelectorAll("button[data-page]")
+    const $limitSelect = document.querySelector("select[name='limit']")
+    $limitSelect.addEventListener("change", ()=> $form.submit())
+    Array.from($pageButtons).forEach((btn)=> btn.addEventListener("click", ()=>{
+      document.querySelector("input[name='page']").value = btn.dataset.page
+      $form.submit()
+    }))
+    document.getElementById("sort-buttons").addEventListener("click", (e)=> {
+      const target = e.target
+      if (target.nodeName === "BUTTON"){
+        const textContent = target.textContent.trim();
+        const sortBy = target.dataset.sort
+        Array.from(document.querySelectorAll("#sort-buttons button")).forEach((btn)=> btn.textContent = "-")
+        switch(textContent){
+          case "-": target.textContent = "ASC"
+          break
+          case "ASC": target.textContent = "DESC"
+          break
+          case "DESC": target.textContent = "-"
+          break
+        }
+
+        document.querySelector("input[name='sort_by']").value = sortBy
+        document.querySelector("input[name='sort_direction']").value = target.textContent
+        $form.submit()
+      }
+    })
+  })()
+</script>

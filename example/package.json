@@ -1,0 +1,11 @@
+{
+  "name": "web-csv-viewer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:devcarlosmolero/web-csv-viewer.git",
+  "author": "devcarlosmolero <dev@carlosmolero.com>",
+  "license": "MIT",
+  "dependencies": {
+    "daisyui": "^5.0.4"
+  }
+}
