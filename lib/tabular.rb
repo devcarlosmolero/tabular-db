@@ -6,39 +6,54 @@ class Tabular
     @files_root = "#{Dir.pwd}#{files_root}"
   end
 
-  def update
-
-  end
-
-  def delete(clazz, where = nil)
-    op_data = get_read_delete_op_data(clazz)
-    data = read(clazz)
-    header = data[:header]
-
-    if where.nil?
-      lines = CSV.generate_line(header)
-      File.write(op_data[:file_path], lines.strip)
-    else
-      unfiltered_obj_array = data[:rows]
-      filtered_obj_array = []
-
-      unfiltered_obj_array.each do |obj|
-        instance = clazz.new(row_to_object(obj.values, header).transform_keys(&:to_sym))
-        filtered_obj_array << obj unless eval where
-      end
-
-      lines = CSV.generate_line(header)
-      filtered_obj_array.each do |obj|
-        obj_as_array = obj.keys.map { |key| obj[key] }
-        lines += CSV.generate_line(obj_as_array)
-      end
-
-      File.write(op_data[:file_path], lines.strip)
+  def create(instances)
+    if !instances.is_a?(Array)
+      raise TabularError, "create accepts an array of instances"
     end
+
+    first_instance = instances.first
+
+
+    instances.each do |instance|
+      if instance.class != first_instance.class
+        raise TabularError, "all the instances passed to create must be created from the same Class"
+      end
+    end
+
+    op_data = get_create_op_data(first_instance)
+    accessors = first_instance.instance_variables.map { |var| var.to_s.delete('@') }
+    rows_to_create = []
+
+    instances.each do |instance|
+      row_from_instance = []
+      accessors.each do |accessor|
+        row_from_instance << instance.send(accessor)
+      end
+      rows_to_create << row_from_instance
+    end
+
+    lines = ""
+
+    if !table_exists?(nil, op_data)
+      header = accessors
+      lines = "#{CSV.generate_line(header)}#{rows_to_create.map { |row| CSV.generate_line(row) }.join('')}"
+    else
+      existing_rows = []
+      File.open(op_data[:file_path]) do |file|
+        CSV.foreach(file) do |existing_row|
+          existing_rows << existing_row
+        end
+      end
+
+      existing_rows.push(*rows_to_create)
+      lines = existing_rows.map { |row| CSV.generate_line(row) }.join('')
+    end
+
+    File.write(op_data[:file_path], lines.strip)
   end
 
-  def read(clazz, as_instances = false, where = nil, sort = nil)
-    op_data = get_read_delete_op_data(clazz)
+  def read(clazz, where = nil, sort = nil)
+    op_data = get_read_update_delete_op_data(clazz)
     unfiltered_rows = []
     File.open(op_data[:file_path]) do |file|
       CSV.foreach(file) do |row|
@@ -68,50 +83,77 @@ class Tabular
     }
   end
 
-  def insert(instances)
-    if !instances.is_a?(Array)
-      raise TabularError, "insert accepts an array of instances"
+  def update(clazz, where = nil, updated_values = nil)
+    if where.nil?
+      raise TabularError, "where is required for update operations"
     end
 
-    first_instance = instances.first
+    if updated_values.nil?
+      raise TabularError, "updated_values is required for update operations"
+    end
 
+    op_data = get_read_update_delete_op_data(clazz)
+    data = read(clazz)
+    header = data[:header]
 
-    instances.each do |instance|
-      if instance.class != first_instance.class
-        raise TabularError, "all the instances passed to insert must be created from the same Class"
+    obj_array = data[:rows]
+    updated_obj_arr = []
+
+    obj_array = obj_array.map do |obj|
+      instance = clazz.new(obj.transform_keys(&:to_sym))
+      if eval where
+          new_obj = obj
+          header.each do |key|
+            if !updated_values[key.to_sym].nil?
+              new_obj[key] = updated_values[key.to_sym]
+            end
+          end
+          updated_obj_arr << new_obj
+          new_obj
+      else
+          obj
       end
     end
 
-    op_data = get_insert_op_data(first_instance)
-    accessors = first_instance.instance_variables.map { |var| var.to_s.delete('@') }
-    rows_to_insert = []
-
-    instances.each do |instance|
-      row_from_instance = []
-      accessors.each do |accessor|
-        row_from_instance << instance.send(accessor)
-      end
-      rows_to_insert << row_from_instance
-    end
-
-    lines = ""
-
-    if !table_exists?(nil, op_data)
-      header = accessors
-      lines = "#{CSV.generate_line(header)}#{rows_to_insert.map { |row| CSV.generate_line(row) }.join('')}"
-    else
-      existing_rows = []
-      File.open(op_data[:file_path]) do |file|
-        CSV.foreach(file) do |existing_row|
-          existing_rows << existing_row
-        end
-      end
-
-      existing_rows.push(*rows_to_insert)
-      lines = existing_rows.map { |row| CSV.generate_line(row) }.join('')
+    lines = CSV.generate_line(header)
+    obj_array.each do |obj|
+      obj_as_array = obj.keys.map { |key| obj[key] }
+      lines += CSV.generate_line(obj_as_array)
     end
 
     File.write(op_data[:file_path], lines.strip)
+
+    {
+      header: header,
+      rows: updated_obj_arr
+    }
+  end
+
+  def delete(clazz, where = nil)
+    op_data = get_read_update_delete_op_data(clazz)
+    data = read(clazz)
+    header = data[:header]
+
+    if where.nil?
+      lines = CSV.generate_line(header)
+      File.write(op_data[:file_path], lines.strip)
+    else
+      unfiltered_obj_array = data[:rows]
+      filtered_obj_array = []
+
+      unfiltered_obj_array.each do |obj|
+        instance = clazz.new(row_to_object(obj.values, header).transform_keys(&:to_sym))
+        filtered_obj_array << obj unless eval where
+      end
+
+      lines = CSV.generate_line(header)
+      filtered_obj_array.each do |obj|
+        obj_as_array = obj.keys.map { |key| obj[key] }
+        lines += CSV.generate_line(obj_as_array)
+      end
+
+      File.write(op_data[:file_path], lines.strip)
+    end
   end
 
   def table_exists?(clazz = nil, op_data = nil)
@@ -128,7 +170,7 @@ class Tabular
 
   private
 
-  def get_insert_op_data(instance)
+  def get_create_op_data(instance)
     class_name = instance.class.name
     file_name = get_file_name(class_name)
     file_path = get_file_path(file_name)
@@ -140,7 +182,7 @@ class Tabular
     }.transform_keys(&:to_sym)
   end
 
-  def get_read_delete_op_data(clazz)
+  def get_read_update_delete_op_data(clazz)
     file_name = get_file_name(clazz.name)
     file_path = get_file_path(file_name)
 
