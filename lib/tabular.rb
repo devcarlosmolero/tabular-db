@@ -3,20 +3,23 @@ require_relative "exceptions/tabular_error"
 
 class Tabular
   def initialize(files_root)
+    if files_root.nil?
+      raise TabularError, "files_root argument is required"
+    end
+
     @files_root = "#{Dir.pwd}#{files_root}"
   end
 
   def create(instances)
     if !instances.is_a?(Array)
-      raise TabularError, "create accepts an array of instances"
+      raise TabularError, "instances should be an array"
     end
 
     first_instance = instances.first
 
-
     instances.each do |instance|
       if instance.class != first_instance.class
-        raise TabularError, "all the instances passed to create must be created from the same Class"
+        raise TabularError, "all the instances must be created from the same Class"
       end
     end
 
@@ -34,7 +37,7 @@ class Tabular
 
     lines = ""
 
-    if !table_exists?(nil, op_data)
+    if !table_exist?(nil, op_data)
       header = accessors
       lines = "#{CSV.generate_line(header)}#{rows_to_create.map { |row| CSV.generate_line(row) }.join('')}"
     else
@@ -45,14 +48,18 @@ class Tabular
         end
       end
 
-      existing_rows.push(*rows_to_create)
-      lines = existing_rows.map { |row| CSV.generate_line(row) }.join('')
+      rows = existing_rows + rows_to_create
+      lines = rows.map { |row| CSV.generate_line(row) }.join('')
     end
 
     File.write(op_data[:file_path], lines.strip)
   end
 
   def read(clazz, where = nil, sort = nil)
+    if clazz.nil?
+      raise TabularError, 'clazz argument is required'
+    end
+
     op_data = get_read_update_delete_op_data(clazz)
     unfiltered_rows = []
     File.open(op_data[:file_path]) do |file|
@@ -84,12 +91,16 @@ class Tabular
   end
 
   def update(clazz, where = nil, updated_values = nil)
+    if clazz.nil?
+      raise TabularError, 'clazz argument is required'
+    end
+
     if where.nil?
-      raise TabularError, "where is required for update operations"
+      raise TabularError, "where argument is required for update operations"
     end
 
     if updated_values.nil?
-      raise TabularError, "updated_values is required for update operations"
+      raise TabularError, "updated_values argument is required for update operations"
     end
 
     op_data = get_read_update_delete_op_data(clazz)
@@ -130,6 +141,10 @@ class Tabular
   end
 
   def delete(clazz, where = nil)
+    if clazz.nil?
+      raise TabularError, 'clazz argument is required'
+    end
+
     op_data = get_read_update_delete_op_data(clazz)
     data = read(clazz)
     header = data[:header]
@@ -156,16 +171,37 @@ class Tabular
     end
   end
 
-  def table_exists?(clazz = nil, op_data = nil)
+  def create_if_not_exist(clazz, header)
+    if clazz.nil?
+      raise TabularError, 'clazz argument is required'
+    end
+
+    if !header.is_a(Array)
+      raise TabularError, 'header should be an array'
+    end
+
+    file_name = get_file_name(clazz.name)
+    file_path = get_file_path(file_name)
+
+    if !table_exist?
+      File.write(op_data[:file_path], CSV.generate_line(header).strip)
+    end
+  end
+
+  def table_exist?(clazz = nil, op_data = nil)
     if op_data.nil? and clazz.nil?
-      raise TabularError, 'you must provide a Class or the operation data to use table_exists?'
+      raise TabularError, 'you must provide a Class or the operation data to use table_exist?'
     end
 
     File.exist?(op_data ? op_data[:file_path] : get_file_path(get_file_name(clazz.name)))
   end
 
   def drop(clazz)
-    File.delete(get_file_path(get_file_name(clazz.name))) if table_exists?(clazz)
+    if clazz.nil?
+      raise TabularError, 'clazz argument is required'
+    end
+
+    File.delete(get_file_path(get_file_name(clazz.name))) if table_exist?(clazz)
   end
 
   private
