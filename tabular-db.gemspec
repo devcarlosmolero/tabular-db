@@ -7,6 +7,6 @@ Gem::Specification.new do |s|
   s.email = "dev@carlosmolero.com"
   s.files = ["lib/tabular-db.rb", "lib/tabular_db_error.rb"]
   s.homepage =
-    "https://rubygems.org/gems/text-engine"
+    "https://rubygems.org/gems/tabular-db"
   s.license = "MIT"
 end
