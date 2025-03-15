@@ -1,9 +1,11 @@
 class User
-  attr_accessor :user_id, :username, :email, :created_at
+  attr_accessor :id, :username, :name, :address, :email, :created_at
 
   def initialize(user)
-    @user_id = user[:user_id].to_i
+    @id = user[:id].to_i
     @username = user[:username]
+    @name = user[:name]
+    @address = user[:address]
     @email = user[:email]
     @created_at = user[:created_at]
   end

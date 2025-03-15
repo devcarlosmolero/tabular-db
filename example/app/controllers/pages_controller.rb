@@ -17,12 +17,21 @@ class PagesController < ApplicationController
       sort = "row['#{sort_by}'].to_i * #{sort_direction === "ASC" ? "1":"-1"}"
     end
 
+    if (sort_by === "username" or sort_by === "name" or sort_by === "email") and sort_direction != "-"
+      sort = "row['#{sort_by}']#{sort_direction === "ASC" ? nil:".downcase.reverse"}"
+    end
+
     if search
       where = "row['email'].downcase.include?'#{search.downcase}' or row['username'].downcase.include? '#{search.downcase}' or row['name'].downcase.include? '#{search.downcase}'"
     end
 
     db = TabularDB.new("/app/db")
-    data = db.read(User, limit, page * limit, where, sort)
+    data = db.read(User, {
+      limit: limit,
+      offset: limit * page,
+      where: where,
+      sort: sort
+    })
     @users = data[:rows]
     @header = data[:header]
     @total_count = data[:total_count]

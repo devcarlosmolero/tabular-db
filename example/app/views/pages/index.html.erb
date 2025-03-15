@@ -36,11 +36,9 @@
               <th>
                 <div class="flex items-center gap-2">
                   <p><%= h %></p>
-                  <% if h == "id" or h == "age" %>
-                    <button data-sort="<%= h %>" type="button" class="btn btn-circle btn-soft btn-xs !px-6">
-                      <%= h === @current_sort_by ? @current_sort_direction:"-" %>
-                    </button>
-                  <% end %>
+                  <button data-sort="<%= h %>" type="button" class="btn btn-circle btn-soft btn-xs !px-6">
+                    <%= h === @current_sort_by ? @current_sort_direction:"-" %>
+                  </button>
                 </div>
               </th>
             <% end %>

@@ -1,4 +1,5 @@
 require 'csv'
+require "faker"
 require_relative "./tabular_db_error"
 
 class TabularDB
@@ -50,8 +51,12 @@ class TabularDB
     File.write(op_data[:file_path], lines.strip)
   end
 
-  def read(clazz, limit = 0, offset = 0, where = nil, sort = nil)
+  def read(clazz, options = nil)
     raise TabularDBError, 'clazz argument is required' if clazz.nil?
+    raise TabularDBError, 'options argument is required, you must pass at least an empty object {}' if options.nil?
+
+    limit = options[:limit].nil? ? 0 : options[:limit]
+    offset = options[:offset].nil? ? 0 : options[:offset]
 
     op_data = get_read_update_delete_op_data(clazz)
     unfiltered_rows = CSV.read(op_data[:file_path])
@@ -59,11 +64,11 @@ class TabularDB
     header = unfiltered_rows.shift
     rows = unfiltered_rows.map { |row| row_to_object(row, header) }
 
-    if where
-      rows.select! { |row| eval where }
+    if !options[:where].nil?
+      rows.select! { |row| eval options[:where] }
     end
 
-    rows.sort_by! { |row| eval sort } if sort
+    rows.sort_by! { |row| eval options[:sort] } if !options[:sort].nil?
     filtered_count = rows.size
     rows = rows.drop(offset)
     rows = rows.first(limit) unless limit == 0
@@ -83,7 +88,7 @@ class TabularDB
     raise TabularDBError, "updated_values argument is required for update operations" if updated_values.nil?
 
     op_data = get_read_update_delete_op_data(clazz)
-    data = read(clazz)
+    data = read(clazz, {})
     header = data[:header]
     rows = data[:rows]
 
@@ -115,7 +120,7 @@ class TabularDB
     raise TabularDBError, 'clazz argument is required' if clazz.nil?
 
     op_data = get_read_update_delete_op_data(clazz)
-    data = read(clazz)
+    data = read(clazz, {})
     header = data[:header]
     rows = data[:rows]
 

@@ -1,4 +1,5 @@
 require "tabular-db"
+require "faker"
 require_relative "../../app/models/user"
 
 namespace :csv do
@@ -7,11 +8,11 @@ namespace :csv do
     db = TabularDB.new("/app/db")
     users = []
 
-    100.times do |i|
+    129.times do |i|
       user_data = {
         id: i + 1,
-        username: "user#{i + 1}",
-        name: "User #{i + 1}",
+        username: "@#{Faker::Name.name.split(" ").join("").downcase}",
+        name: Faker::Name.name,
         age: rand(18..65),
         email: "user#{i + 1}@example.com"
       }
@@ -20,7 +21,5 @@ namespace :csv do
     end
 
     db.create(users)
-
-    puts "Users created"
   end
 end
