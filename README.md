@@ -14,8 +14,6 @@ Now you can.
 
 Tabular DB allows you to use CSV files as a database and leverage existing CSV viewers to enhance the prototyping experience.
 
-![](/gif.gif)
-
 ## Table of Contents
 
 - [Create](#create)
