@@ -1,6 +1,3 @@
-<p align="center">
-<img src="./logo.svg" width="80px" height="80px"/>
-</p>
 <h1 align="center">Tabular DB</h1>
 <p align="center">
 <img src="https://github.com/devcarlosmolero/tabular-db/actions/workflows/rspec.yml/badge.svg"/>
